@@ -37,6 +37,12 @@ class WhatsAppService:
             timeout=30
         )
 
-        print(response.json())
+        response.raise_for_status()
 
-        return response.json()
+        try:
+            return response.json()
+        except ValueError:
+            return {
+                "status_code": response.status_code,
+                "text": response.text,
+            }

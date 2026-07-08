@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
     register_middleware(app)
 
     # Routes
-    app.include_router(whatapp_router, prefix="/api/whatapp", tags=["Whatsapp"])
+    app.include_router(whatapp_router, prefix="/api/webhook", tags=["Whatsapp"])
 
      # Startup Event
     @app.on_event("startup")

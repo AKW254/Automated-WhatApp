@@ -8,7 +8,11 @@ MAX_REQUESTS = 100
 WINDOW_SECONDS = 60
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        client_ip = request.client.host
+        client_ip = (
+            request.client.host
+            if request.client and request.client.host
+            else "unknown"
+        )
         current_time = time.time()
 
         if client_ip not in RATE_LIMIT:

@@ -1,5 +1,6 @@
+import json
 from pathlib import Path
-from typing import List, Dict
+from typing import List
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,6 +52,7 @@ class Settings(BaseSettings):
     #Whatsapp API
     whatsapp_token: str
     whatsapp_phone_number_id: str
+    whatsapp_verify_token: str | None = None
    
    
    #Load settings from .env file and validate them
@@ -72,6 +74,24 @@ class Settings(BaseSettings):
     def get_cors_origins(self) -> List[str]:
         """Parse CORS origins from string or return list"""
         if isinstance(self.cors_origins, str):
-            return [origin.strip() for origin in self.cors_origins.split(",")]
+            raw_value = self.cors_origins.strip()
+
+            if raw_value.startswith("[") and raw_value.endswith("]"):
+                try:
+                    parsed = json.loads(raw_value)
+                    if isinstance(parsed, list):
+                        return [
+                            str(origin).strip()
+                            for origin in parsed
+                            if str(origin).strip()
+                        ]
+                except json.JSONDecodeError:
+                    pass
+
+            return [
+                origin.strip().strip('"').strip("'")
+                for origin in raw_value.split(",")
+                if origin.strip()
+            ]
         return self.cors_origins
 settings = Settings()  # Load settings from .env file and validate them
