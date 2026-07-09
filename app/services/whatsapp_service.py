@@ -16,7 +16,7 @@ class WhatsAppService:
     ):
         headers = {
             "Authorization": (
-                f"Bearer {settings.whatsapp_verify_token}"
+                f"Bearer {settings.whatsapp_token}"
             ),
             "Content-Type": "application/json",
         }
