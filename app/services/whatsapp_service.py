@@ -1,6 +1,8 @@
 import requests
 
 from app.config.settings import settings
+from app.utils.logger import logger  # Reusing your logger for error visibility
+
 
 class WhatsAppService:
     GRAPH_API_VERSION = "v25.0"
@@ -17,11 +19,9 @@ class WhatsAppService:
     def send_text_message(
         recipient: str,
         message: str,
-    ):
+    ) -> dict:
         headers = {
-            "Authorization": (
-                f"Bearer {settings.whatsapp_token}"
-            ),
+            "Authorization": f"Bearer {settings.whatsapp_token}",
             "Content-Type": "application/json",
         }
 
@@ -29,24 +29,29 @@ class WhatsAppService:
             "messaging_product": "whatsapp",
             "to": recipient,
             "type": "text",
-            "text": {
-                "body": message
-            }
+            "text": {"body": message}
         }
 
-        response = requests.post(
-            WhatsAppService._graph_url(),
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-
-        response.raise_for_status()
-
         try:
+            response = requests.post(
+                WhatsAppService._graph_url(),
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+          
+            if not response.ok:
+                try:
+                    error_details = response.json()
+                    logger.error(f"Meta API Error response: {error_details}")
+                except ValueError:
+                    logger.error(f"Meta API Error (Non-JSON): {response.text}")
+            
+            response.raise_for_status()
             return response.json()
-        except ValueError:
-            return {
-                "status_code": response.status_code,
-                "text": response.text,
-            }
+
+        except requests.exceptions.RequestException as exc:
+            logger.exception("HTTP Request to WhatsApp Graph API failed")
+            # Re-raise so the calling route or threadpool knows it failed
+            raise exc

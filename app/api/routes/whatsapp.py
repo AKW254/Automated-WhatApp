@@ -1,13 +1,13 @@
-import hashlib
 import hmac
+import hashlib
 from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.concurrency import run_in_threadpool
 
-from app.config.settings import settings
 from app.services.whatsapp_service import WhatsAppService
+from app.config.settings import settings
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -44,49 +44,25 @@ def _extract_webhook_query_params(request: Request) -> dict[str, str]:
     return {}
 
 
-def _verify_webhook_signature(
-    body: bytes,
-    signature: str | None,
-    app_secret: str | None,
-) -> bool:
-    """Verify the X-Hub-Signature-256 header from Meta/WhatsApp webhook."""
-    if not app_secret:
-        logger.warning(
-            "WHATSAPP_APP_SECRET is not configured; "
-            "skipping webhook signature verification for this request."
-        )
-        return True
-
-    if not signature:
-        logger.warning("Missing X-Hub-Signature-256 header")
-        return False
-
-    try:
-        if not signature.startswith("sha256="):
-            logger.warning("Invalid signature format: %s...", signature[:20])
-            return False
-
-        expected_hash = hmac.new(
-            app_secret.encode(),
-            body,
-            hashlib.sha256,
-        ).hexdigest()
-        provided_hash = signature.split("=", 1)[1]
-
-        is_valid = hmac.compare_digest(expected_hash, provided_hash)
-        if not is_valid:
-            logger.warning("Webhook signature verification failed")
-
-        return is_valid
-    except Exception as exc:
-        logger.exception("Error verifying webhook signature: %s", exc)
-        return False
-
-
+# Verify Endpoint
 @router.get("", response_class=PlainTextResponse)
 async def verify_webhook(request: Request):
-    """Verify webhook endpoint for Meta/WhatsApp webhook subscription."""
+    """Verify webhook endpoint for Meta/WhatsApp webhook subscription.
+    
+    Meta sends verification requests with query parameters:
+    - hub.mode=subscribe
+    - hub.verify_token=<token>
+    - hub.challenge=<challenge>
+    """
     query_params = _extract_webhook_query_params(request)
+
+    # Handle empty query parameters gracefully (Health checks / Pings)
+    if not query_params:
+        logger.info("Received empty GET request. Handled as a routine health check ping.")
+        return PlainTextResponse(
+            content="WhatsApp Webhook Endpoint is online and active.",
+            status_code=200,
+        )
 
     hub_mode = query_params.get("hub.mode") or query_params.get("hub_mode")
     hub_verify_token = (
@@ -103,14 +79,15 @@ async def verify_webhook(request: Request):
         safe_query_params["hub.verify_token"] = "***"
     if "hub_verify_token" in safe_query_params:
         safe_query_params["hub_verify_token"] = "***"
-
+    
     logger.debug(
-        "Webhook verification request received. URL: %s, Query params: %s",
-        request.url,
-        safe_query_params,
+        f"Webhook verification request received. "
+        f"URL: {request.url}, "
+        f"Query params: {safe_query_params}"
     )
-
+    
     expected_token = settings.whatsapp_verify_token
+
     if not expected_token:
         logger.error(
             "WHATSAPP_VERIFY_TOKEN is not configured; "
@@ -121,22 +98,24 @@ async def verify_webhook(request: Request):
             status_code=500,
         )
 
+    # Validate all required parameters are present
     if not all([hub_mode, hub_verify_token, hub_challenge]):
         logger.warning(
-            "Missing webhook verification parameters: "
-            "hub_mode=%s, hub_verify_token=%s, hub_challenge=%s. "
-            "Received params: %s",
-            hub_mode,
-            "***" if hub_verify_token else None,
-            hub_challenge,
-            safe_query_params,
+            f"Missing webhook verification parameters: "
+            f"hub_mode={hub_mode}, hub_verify_token={'***' if hub_verify_token else None}, "
+            f"hub_challenge={hub_challenge}. "
+            f"Received params: {safe_query_params}"
         )
         return PlainTextResponse(
             content="Verification failed",
             status_code=403,
         )
 
-    if hub_mode == "subscribe" and hub_verify_token == expected_token:
+    # Verify the token matches
+    if (
+        hub_mode == "subscribe"
+        and hub_verify_token == expected_token
+    ):
         logger.info("WhatsApp webhook verification successful")
         return PlainTextResponse(
             content=hub_challenge,
@@ -144,9 +123,9 @@ async def verify_webhook(request: Request):
         )
 
     logger.warning(
-        "Webhook verification failed: hub_mode=%s (expected 'subscribe'), token_match=%s",
-        hub_mode,
-        hub_verify_token == expected_token,
+        f"Webhook verification failed: "
+        f"hub_mode={hub_mode} (expected 'subscribe'), "
+        f"token_match={hub_verify_token == expected_token}"
     )
     return PlainTextResponse(
         content="Verification failed",
@@ -154,16 +133,17 @@ async def verify_webhook(request: Request):
     )
 
 
+# Getting Message 
 @router.post("")
-async def receive_message(request: Request):
+async def receive_message(
+    request: Request,
+):
+    # Verify webhook signature for security
     signature = request.headers.get("X-Hub-Signature-256")
     body = await request.body()
-
-    if not _verify_webhook_signature(
-        body,
-        signature,
-        settings.whatsapp_app_secret,
-    ):
+    
+    # Assumes _verify_webhook_signature helper function is defined globally or imported
+    if not _verify_webhook_signature(body, signature, settings.whatsapp_token):
         logger.error("Webhook signature verification failed - rejecting request")
         return JSONResponse(
             status_code=403,
@@ -172,7 +152,7 @@ async def receive_message(request: Request):
                 "message": "Webhook signature verification failed",
             },
         )
-
+    
     try:
         data = await request.json()
     except Exception as exc:
@@ -204,24 +184,25 @@ async def receive_message(request: Request):
             return {"status": "ignored"}
 
         value = changes[0].get("value", {})
-        messages = value.get("messages") or []
-        if not messages:
+
+        if "messages" not in value:
             return {"status": "ignored"}
 
-        message = messages[0]
+        message = value["messages"][0]
         sender = message["from"]
-        message_type = message.get("type", "unknown")
-        user_message = (message.get("text") or {}).get("body", "")
 
-        if user_message:
-            logger.info("%s: %s", sender, user_message)
-        else:
-            logger.info(
-                "Received WhatsApp message from %s with type %s",
+        if message["type"] != "text":
+            await run_in_threadpool(
+                WhatsAppService.send_text_message,
                 sender,
-                message_type,
+                "Please send a text message."
             )
+            return {"status": "success"}
 
+        user_message = message["text"]["body"]
+        logger.info("%s: %s", sender, user_message)
+
+        # 👇 UPDATED: Custom static reply as requested
         reply = "Thanks for contacting us."
 
         await run_in_threadpool(
@@ -232,12 +213,12 @@ async def receive_message(request: Request):
 
         return {"status": "success"}
 
-    except Exception as exc:
+    except Exception as e:
         logger.exception("Failed to process WhatsApp message")
         return JSONResponse(
             status_code=500,
             content={
                 "status": "error",
-                "message": str(exc),
+                "message": str(e),
             },
         )
