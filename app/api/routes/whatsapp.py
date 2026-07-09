@@ -9,13 +9,29 @@ from app.config.settings import settings
 from app.utils.logger import logger
 
 router = APIRouter()
+
 #Verify Endpoint
 @router.get("")
-async def verify_webhook(
-    hub_mode: str | None = Query(default=None, alias="hub.mode"),
-    hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
-    hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
-):
+async def verify_webhook(request: Request):
+    """Verify webhook endpoint for Meta/WhatsApp webhook subscription.
+    
+    Meta sends verification requests with query parameters:
+    - hub.mode=subscribe
+    - hub.verify_token=<token>
+    - hub.challenge=<challenge>
+    """
+    # Extract query parameters - Meta uses dots in parameter names
+    query_params = request.query_params
+    
+    hub_mode = query_params.get("hub.mode")
+    hub_verify_token = query_params.get("hub.verify_token")
+    hub_challenge = query_params.get("hub.challenge")
+    
+    logger.debug(
+        f"Webhook verification request received. "
+        f"Query params: {dict(query_params)}"
+    )
+    
     expected_token = settings.whatsapp_verify_token
 
     if not expected_token:
@@ -33,7 +49,8 @@ async def verify_webhook(
         logger.warning(
             f"Missing webhook verification parameters: "
             f"hub_mode={hub_mode}, hub_verify_token={'***' if hub_verify_token else None}, "
-            f"hub_challenge={hub_challenge}"
+            f"hub_challenge={hub_challenge}. "
+            f"Received params: {dict(query_params)}"
         )
         return PlainTextResponse(
             content="Verification failed",
