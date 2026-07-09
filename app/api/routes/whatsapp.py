@@ -45,6 +45,7 @@ def _extract_webhook_query_params(request: Request) -> dict[str, str]:
 
 
 #Verify Endpoint
+# Verify Endpoint
 @router.get("", response_class=PlainTextResponse)
 async def verify_webhook(request: Request):
     """Verify webhook endpoint for Meta/WhatsApp webhook subscription.
@@ -56,6 +57,14 @@ async def verify_webhook(request: Request):
     """
     # Extract query parameters - Meta uses dots in parameter names
     query_params = _extract_webhook_query_params(request)
+
+    # 👇 FIX: Handle empty query parameters gracefully (Health checks / Pings)
+    if not query_params:
+        logger.info("Received empty GET request. Handled as a routine health check ping.")
+        return PlainTextResponse(
+            content="WhatsApp Webhook Endpoint is online and active.",
+            status_code=200,
+        )
 
     hub_mode = query_params.get("hub.mode") or query_params.get("hub_mode")
     hub_verify_token = (
@@ -124,45 +133,7 @@ async def verify_webhook(request: Request):
         content="Verification failed",
         status_code=403,
     )
-def _verify_webhook_signature(body: bytes, signature: str | None, token: str) -> bool:
-    """Verify the X-Hub-Signature header from Meta/WhatsApp webhook.
-    
-    Args:
-        body: The raw request body as bytes
-        signature: The X-Hub-Signature header value
-        token: The whatsapp_token from settings
-        
-    Returns:
-        True if signature is valid, False otherwise
-    """
-    if not signature:
-        logger.warning("Missing X-Hub-Signature header")
-        return False
-    
-    try:
-        # Signature format is "sha256=<hash>"
-        if not signature.startswith("sha256="):
-            logger.warning(f"Invalid signature format: {signature[:20]}...")
-            return False
-        
-        expected_hash = hmac.new(
-            token.encode(),
-            body,
-            hashlib.sha256
-        ).hexdigest()
-        
-        provided_hash = signature.split("=")[1]
-        
-        # Use constant-time comparison to prevent timing attacks
-        is_valid = hmac.compare_digest(expected_hash, provided_hash)
-        
-        if not is_valid:
-            logger.warning("Webhook signature verification failed")
-        
-        return is_valid
-    except Exception as e:
-        logger.exception(f"Error verifying webhook signature: {e}")
-        return False
+
 
 # Getting Message 
 @router.post("")
