@@ -37,10 +37,13 @@ def create_app() -> FastAPI:
      # Startup Event
     @app.on_event("startup")
     async def startup_event():
-         logger.info("Starting up the application...")
-         # Initialize database connection
-         #await init_db()
-         logger.info("Application startup complete.")
+        logger.info("Starting up the application...")
+        # Initialize database connection
+        #await init_db()
+        logger.info(
+            f"WHATSAPP_VERIFY_TOKEN={repr(settings.whatsapp_verify_token)}"
+        )
+                                                    
     
     #Root Route
     @app.get("/",tags=["Root"])
