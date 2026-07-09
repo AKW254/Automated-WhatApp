@@ -1,6 +1,8 @@
 import hmac
 import hashlib
-from fastapi import APIRouter, Query, Request
+from urllib.parse import parse_qsl
+
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -10,8 +12,40 @@ from app.utils.logger import logger
 
 router = APIRouter()
 
+
+def _extract_webhook_query_params(request: Request) -> dict[str, str]:
+    """Return webhook verification query params from the request or proxy headers."""
+    query_params = dict(request.query_params)
+    if query_params:
+        return query_params
+
+    raw_query_string = request.scope.get("query_string", b"")
+    if raw_query_string:
+        parsed_query = dict(
+            parse_qsl(
+                raw_query_string.decode("utf-8", errors="ignore"),
+                keep_blank_values=True,
+            )
+        )
+        if parsed_query:
+            return parsed_query
+
+    # Some gateways forward the original URL in a header but strip the ASGI query string.
+    for header_name in ("x-original-uri", "x-forwarded-uri", "x-rewrite-url"):
+        forwarded_uri = request.headers.get(header_name)
+        if not forwarded_uri or "?" not in forwarded_uri:
+            continue
+
+        forwarded_query = forwarded_uri.split("?", 1)[1]
+        parsed_query = dict(parse_qsl(forwarded_query, keep_blank_values=True))
+        if parsed_query:
+            return parsed_query
+
+    return {}
+
+
 #Verify Endpoint
-@router.get("")
+@router.get("", response_class=PlainTextResponse)
 async def verify_webhook(request: Request):
     """Verify webhook endpoint for Meta/WhatsApp webhook subscription.
     
@@ -21,15 +55,28 @@ async def verify_webhook(request: Request):
     - hub.challenge=<challenge>
     """
     # Extract query parameters - Meta uses dots in parameter names
-    query_params = request.query_params
-    
-    hub_mode = query_params.get("hub.mode")
-    hub_verify_token = query_params.get("hub.verify_token")
-    hub_challenge = query_params.get("hub.challenge")
+    query_params = _extract_webhook_query_params(request)
+
+    hub_mode = query_params.get("hub.mode") or query_params.get("hub_mode")
+    hub_verify_token = (
+        query_params.get("hub.verify_token")
+        or query_params.get("hub_verify_token")
+    )
+    hub_challenge = (
+        query_params.get("hub.challenge")
+        or query_params.get("hub_challenge")
+    )
+
+    safe_query_params = dict(query_params)
+    if "hub.verify_token" in safe_query_params:
+        safe_query_params["hub.verify_token"] = "***"
+    if "hub_verify_token" in safe_query_params:
+        safe_query_params["hub_verify_token"] = "***"
     
     logger.debug(
         f"Webhook verification request received. "
-        f"Query params: {dict(query_params)}"
+        f"URL: {request.url}, "
+        f"Query params: {safe_query_params}"
     )
     
     expected_token = settings.whatsapp_verify_token
@@ -50,7 +97,7 @@ async def verify_webhook(request: Request):
             f"Missing webhook verification parameters: "
             f"hub_mode={hub_mode}, hub_verify_token={'***' if hub_verify_token else None}, "
             f"hub_challenge={hub_challenge}. "
-            f"Received params: {dict(query_params)}"
+            f"Received params: {safe_query_params}"
         )
         return PlainTextResponse(
             content="Verification failed",

@@ -3,11 +3,15 @@ import requests
 from app.config.settings import settings
 
 class WhatsAppService:
+    GRAPH_API_VERSION = "v25.0"
 
-    GRAPH_URL = (
-        f"https://graph.facebook.com/v23.0/"
-        f"{settings.whatsapp_phone_number_id}/messages"
-    )
+    @staticmethod
+    def _graph_url() -> str:
+        return (
+            f"https://graph.facebook.com/"
+            f"{WhatsAppService.GRAPH_API_VERSION}/"
+            f"{settings.whatsapp_phone_number_id}/messages"
+        )
 
     @staticmethod
     def send_text_message(
@@ -31,7 +35,7 @@ class WhatsAppService:
         }
 
         response = requests.post(
-            WhatsAppService.GRAPH_URL,
+            WhatsAppService._graph_url(),
             headers=headers,
             json=payload,
             timeout=30

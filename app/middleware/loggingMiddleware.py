@@ -30,8 +30,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         process_time = time.time() - start_time
 
+        request_target = request.url.path
+        if request.url.query:
+            request_target = f"{request_target}?{request.url.query}"
+
         logger.info(
-            f"{request.method} {request.url.path} "
+            f"{request.method} {request_target} "
             f"Status: {response.status_code} "
             f"Time: {process_time:.4f}s"
         )
