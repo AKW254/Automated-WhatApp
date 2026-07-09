@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     #Whatsapp API
     whatsapp_token: str
     whatsapp_phone_number_id: str
+    # Meta webhook verify token. This is separate from whatsapp_token.
     whatsapp_verify_token: str | None = None
    
    

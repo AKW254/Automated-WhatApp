@@ -14,7 +14,17 @@ async def verify_webhook(
     hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
     hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
 ):
-    expected_token = settings.whatsapp_verify_token or settings.jwt_secret_key
+    expected_token = settings.whatsapp_verify_token
+
+    if not expected_token:
+        logger.error(
+            "WHATSAPP_VERIFY_TOKEN is not configured; "
+            "Meta webhook verification cannot succeed."
+        )
+        return PlainTextResponse(
+            content="Webhook verify token is not configured",
+            status_code=500,
+        )
 
     if (
         hub_mode == "subscribe"
