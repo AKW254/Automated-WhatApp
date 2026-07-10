@@ -117,7 +117,6 @@ async def receive_message(request: Request):
     signature = request.headers.get("X-Hub-Signature-256")
     body = await request.body()
     
-    # 👇 FIXED: Uses the new validation function and passing the APP SECRET, not the API Token
     # If settings.whatsapp_app_secret isn't set up yet, you can temporarily change this to 'True' to bypass
     if not _verify_webhook_signature(body, signature, getattr(settings, "whatsapp_app_secret", "")):
         logger.error("Webhook signature verification failed - rejecting request")
