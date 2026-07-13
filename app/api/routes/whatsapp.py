@@ -162,12 +162,13 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks):
 
         message = value["messages"][0]
         sender = message["from"]
-
+          # The auto reply target string
+        reply = "Thanks for contacting us."
         if message["type"] != "text":
             background_tasks.add_task(
                 WhatsAppService.send_text_message,
                 sender,
-                "Please send a text message."
+                reply
             )
             return {"status": "success"}
 
