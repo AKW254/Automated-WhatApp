@@ -6,8 +6,10 @@ from app.config.settings import settings
 #from app.config.database import init_db
 # Add Middleware Register
 from app.middleware.middlewareregister import register_middleware
-#Routes (import modules directly)
-from app.api.routes.whatsapp import router as whatapp_router
+
+# WhatsApp (pywa) client + webhook registration
+from app.utils.whatsapp import init_whatsapp
+
 #Logger (optional but recommended)
 from app.utils.logger import logger
 
@@ -18,6 +20,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         description="AI Whatsapp Bot"
     )
+    init_whatsapp(app)
 
     # CORS
     app.add_middleware(
@@ -31,8 +34,7 @@ def create_app() -> FastAPI:
     # Custom Middleware
     register_middleware(app)
 
-    # Routes
-    app.include_router(whatapp_router, prefix="/api/webhook", tags=["Whatsapp"])
+
 
      # Startup Event
     @app.on_event("startup")
@@ -54,6 +56,7 @@ def create_app() -> FastAPI:
     def health_check():
         return {"status": "healthy"}    
     return app
+    
 
 #app instance
 app = create_app()

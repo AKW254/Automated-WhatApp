@@ -1,7 +1,6 @@
 from pywa import WhatsApp
 from pywa.types import Message
 
-from app.utils.whatsapp import wa
 from app.utils.logger import logger
 
 
