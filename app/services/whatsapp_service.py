@@ -1,27 +1,41 @@
-from pywa import WhatsApp 
+from pywa import WhatsApp
 from pywa.types import Message
-  
-from app.config.settings import settings
-from app.utils.logger import logger  # Reusing your logger for error visibility
+
+from app.utils.logger import logger
 
 
 class WhatsAppService:
-    wa = WhatsApp(
-    phone_id=settings.whatsapp_phone_number_id,
-    token=settings.whatsapp_token,
-    verify_token=settings.whatsapp_verify_token,
-    app_secret=settings.whatsapp_app_secret,
-)
-    @wa.on_message()
-    def handle_message(client:WhatsApp,msg: Message):
-        user_message =  msg.text or ""
+    @staticmethod
+    def process_message(client: WhatsApp, msg: Message) -> None:
+        """
+        Process incoming WhatsApp messages.
+
+        AI response generation will be implemented here later.
+        """
+        user_message = msg.text or ""
+
         logger.info(
-            f"Message from {msg.from_user.wa_id}:{user_message}"
-        )    
-        # Replace with AI-generated response later
-        reply = (
-        "Hello! Thank you for contacting us. "
-        "Our AI assistant is processing your message."
+            f"Message from {msg.from_user.wa_id}: {user_message}"
         )
 
-        msg.reply_text(reply)
+        # TODO:
+        # response = AIService.generate_response(
+        #     user_id=msg.from_user.wa_id,
+        #     message=user_message
+        # )
+
+        response = WhatsAppService.get_default_reply()
+
+        msg.reply_text(response)
+
+    @staticmethod
+    def get_default_reply() -> str:
+        """
+        Temporary response until AI integration is implemented.
+        """
+        return (
+            "Hello 👋\n\n"
+            "Thank you for contacting us. "
+            "Our AI assistant is currently processing your message "
+            "and will respond shortly."
+        )
