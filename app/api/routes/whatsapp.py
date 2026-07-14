@@ -1,54 +1,51 @@
+from fastapi import APIRouter
+from pywa import WhatsApp, filters
+from pywa.types import Message
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
-
-from app.services.whatsapp_service import WhatsAppService
+from app.config.settings import settings
+from app.utils.logger import logger
 
 router = APIRouter()
 
-# Verify Endpoint
-@router.get("")
-async def verify_webhook(
-    hub_mode: str = None,
-    hub_verify_token: str = None,
-    hub_challenge: str = None,
-):
-    """
-    Meta webhook verification endpoint.
-    """
-    if (
-        hub_mode == "subscribe"
-        and hub_verify_token == wa.verify_token
-    ):
-        return PlainTextResponse(content=hub_challenge, status_code=200)
+# Initialize PyWa directly on our FastAPI APIRouter.
+# PyWa automatically mounts the GET (verification) and POST (incoming payload)
+# endpoints directly at the root of this router (""). No manual routes needed!
+wa = WhatsApp(
+    phone_id=settings.whatsapp_phone_number_id,
+    token=settings.whatsapp_token,
+    verify_token=settings.whatsapp_verify_token,
+    app_secret=settings.whatsapp_app_secret,
+    server=router,
+    webhook_endpoint="/api/webhook",  # Matches the prefix of this router ("/api/webhook")
+)
 
-    return PlainTextResponse(
-        content="Verification failed",
-        status_code=403,
+
+# Filter for only text messages to prevent handling media errors
+@wa.on_message(filters.text)
+def handle_text_message(client: WhatsApp, msg: Message):
+    """
+    Automatically triggers when a user sends a text message.
+    """
+    user_message = msg.text or ""
+    sender_id = msg.from_user.wa_id
+    sender_name = msg.from_user.name or "User"
+
+    logger.info(f"Received message from {sender_name} ({sender_id}): {user_message}")
+
+    # Static reply (Can be replaced with your AI model generator later)
+    reply = (
+        "Hello! Thank you for contacting us. "
+        "Our AI assistant is processing your message."
     )
 
+    # PyWa helper sends the response instantly back to the user
+    msg.reply_text(text=reply)
 
-@router.post("")
-async def receive_message(request: Request):
+
+@wa.on_message(~filters.text)
+def handle_other_media(client: WhatsApp, msg: Message):
     """
-    Receive WhatsApp webhook events.
+    Fallback handler if a user sends a photo, voice note, document, etc.
     """
-    try:
-        data = await request.json()
-
-        # Let PyWa process the webhook
-        WhatsAppService.handle_webhook(data)
-
-        return JSONResponse(
-            status_code=200,
-            content={"status": "success"},
-        )
-
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": str(e),
-            },
-        )
+    logger.info(f"Received non-text message from {msg.from_user.wa_id}")
+    msg.reply_text(text="Please send a text message.")
