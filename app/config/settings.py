@@ -49,13 +49,15 @@ class Settings(BaseSettings):
     celery_broker_connection_max_retries: int = 1
     celery_timezone:str
     
-    #Whatsapp API
+        #Whatsapp API
     whatsapp_token: str
     whatsapp_phone_number_id: str
     whatsapp_app_secret: str | None = None
     whatsapp_verify_token: str | None = None
     whatsapp_callback_url: str
     whatsapp_app_id: str
+
+
    
    
    #Load settings from .env file and validate them

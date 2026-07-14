@@ -43,7 +43,7 @@ def create_app() -> FastAPI:
         # Initialize database connection
         #await init_db()
         logger.info(
-            f"WHATSAPP_VERIFY_TOKEN={repr(settings.whatsapp_verify_token)}"
+            f"WHATSAPP_VERIFY_TOKEN is {'set' if settings.whatsapp_verify_token else 'MISSING'}"
         )
                                                     
     

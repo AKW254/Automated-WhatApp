@@ -1,6 +1,6 @@
 from pywa.types import Message
 
-from app.utils.whatsapp import wa
+from app.utils.whatsapp import wa 
 from app.services.whatsapp_service import WhatsAppService
 
 
