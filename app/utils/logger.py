@@ -30,14 +30,24 @@ formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
 
 #--------------------------------------------------
 # Console Handler(Show logs in console)
+# Force UTF-8 encoding to handle Unicode characters on Windows
 #--------------------------------------------------
 console_handler = logging.StreamHandler(sys.stdout)
+# Force UTF-8 encoding for Windows compatibility
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 console_handler.setFormatter(formatter)
 
 # --------------------------------------------------
 # File Handler (Rotating)
+# Force UTF-8 encoding
 # --------------------------------------------------
-file_handler = RotatingFileHandler(LOG_FILE, maxBytes=1024*1024, backupCount=5)
+file_handler = RotatingFileHandler(
+    LOG_FILE, 
+    maxBytes=1024*1024, 
+    backupCount=5,
+    encoding='utf-8'  # Ensure UTF-8 encoding for file output
+)
 file_handler.setFormatter(formatter)
 
 #--------------------------------------------------
